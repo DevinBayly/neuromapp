@@ -13,11 +13,11 @@
 #include <cctype>
 #include <cassert>
 
-#include "type_definition.h"
 #include "allocator.h" // that's right, this is another way to tie up files in different locations.
-#include "compressor.h"
 #include "exception.h"
+#include "type_definition.h"
 
+//tim uses comments to denote the end of meaningful brackets
 namespace neuromapp {
 
     // other allocator nothing special col is not modify
@@ -32,17 +32,12 @@ namespace neuromapp {
             return align::resize_policy(n, sizeof_T);
         }
 
-    //default compress algos are zlib util
     //beginning of actual block class material
-    template <class T= typename memory_policy_type::value_type, class allocator = typename memory_policy_type::block_allocator_type,class compressor = typename memory_policy_type::block_compressor_type>
-        class block : public allocator, compressor {
+    template <class T, class allocator = typename memory_policy_type::block_type>
+        class block : public allocator {
             using allocator::allocate_policy;
             using allocator::deallocate_policy;
             using allocator::copy_policy;
-            using allocator::compare_policy;
-            //expose compressor functions
-            using compressor::compress_policy;
-            using compressor::uncompress_policy;
 
             public:
             typedef std::size_t size_type;
@@ -60,8 +55,7 @@ namespace neuromapp {
             block(size_type n = 1, size_type m = 1) : rows_(m) {
                 dim0_ = n;                                      // dim0 not necessary = num_cols due to the resize
                 cols_ = resize_helper<allocator>(n, sizeof(T)); // some policy will resize the col, needs for 2D !
-                current_size = sizeof(T) * cols_ * rows_;
-                data_ = (pointer)allocate_policy(current_size);
+                data_ = (pointer)allocate_policy(sizeof(T) * cols_ * rows_);
             }
             //constructor given rval to another block
             block(block &&other) : rows_(other.rows_), cols_(other.cols_), dim0_(other.dim0_), data_(other.data_) {
@@ -69,17 +63,17 @@ namespace neuromapp {
                 other.rows_ = 0;
                 other.cols_ = 0;
                 other.dim0_ = 0;
-                current_size = 0;
                 other.data_ = nullptr;
             }
 
+            // todo ask tim does this work on blocks with data in them?
             block(const block &other) {
                 // std::move is not needed on basic type
                 rows_ = other.rows_;
                 cols_ = other.cols_;
                 dim0_ = other.dim0_;
-                current_size = sizeof(T) * cols_ * rows_;
-                data_ = (pointer)allocate_policy(current_size);
+                size_type size = sizeof(T) * cols_ * rows_;
+                data_ = (pointer)allocate_policy(size);
                 copy_policy(data_, other.data_, size);
             }
 
@@ -89,16 +83,9 @@ namespace neuromapp {
                 rows_ = rhs.rows_;
                 cols_ = rhs.cols_;
                 dim0_ = rhs.dim0_;
-                data_ = rhs.data_;
-                current_size = rhs.current_size;
-                rhs.rows_ = 0;
-                rhs.cols_ = 0;
-                rhs.dim0_ = 0;
-                rhs.data_ = nullptr;
 
                 // avoid destruction here
-
-
+                std::swap(data_, rhs.data_);
 
                 return *this;
             }
@@ -130,14 +117,7 @@ namespace neuromapp {
             iterator begin() { return data_; }
             iterator end() { return data_ + dim0_ * rows_; }
 
-            //difference between memory_allocated and size is that allocated relies on construction size, where size depends on compression
             size_type memory_allocated() const { return sizeof(T) * cols_ * rows_; }
-
-            size_type size() const { return current_size;}
-
-            bool is_compressed() const {return memory_allocated() == current_size ? false : true;}// compare it to the existing size amount
-
-
 
             const_pointer data() const { return data_; };
 
@@ -181,11 +161,30 @@ namespace neuromapp {
 
             bool operator == (const block & other) {
                 //check size matches first
-                return compare_policy(this->data(),other.data(),current_size);
+                if(this->rows_ != other.num_rows() || 
+                        this->cols_ != other.num_cols()) {
+                    return false;
+                }
+                int rc =std::memcmp(this->data(),other.data(),other.memory_allocated());
+                if (rc == 0) {
+                    return true;// typical char* comparison rules
+                } else {
+                    return false;
+                }
             }
                 
 
 
+
+            std::ifstream check_file (std::string fname) {
+
+                struct stat file_check;
+                if (stat(fname.c_str(),&file_check) !=0) {
+                    throw std::runtime_error( std::string ("non-existing file ") + fname);
+                }
+                std::ifstream in_file(fname);
+                return in_file;
+            }
 
             // this is the tool for adding entries to our block
             void read(std::istream & file_in)
@@ -195,10 +194,8 @@ namespace neuromapp {
                 int row,col;
                 file_in >> col;
                 file_in >> std::ws;
-                // this comes up in cases where an empty string is provided,
-                if(file_in.get() != ',') {
-                    throw 0;// I think it just means if there was something inbetween that wasn't a comma throw 0 error
-                }
+                // TODO look up what is this doing to skip the comma
+                if(file_in.get() != ',') throw 0;// I think it just means if there was something inbetween that wasn't a comma throw 0 error
                 //and now repeat for the row
                 file_in >> row;
                 file_in >> std::ws;
@@ -215,30 +212,24 @@ namespace neuromapp {
                     //read from stream comma_splitter, split on comma, and enter into the data_cell string
                     while(std::getline(comma_splitter,data_cell,',') && col < b.num_cols()) {
                         // using the block element indexing
-                        std::stringstream(data_cell) >> std::dec >> b(col++,row);
+                        std::stringstream(data_cell) >> std::hex >> b(col++,row);
                     }
                     row++;
                 }
+
                 // now we have to swap the data in this block with the calling object block data
                 rows_ = b.num_rows();
                 cols_ = b.num_cols();
                 dim0_ = b.dim0();
-                std::swap(*this,b);
+                //b.print(std::cout);
+                std::swap(this->data_,b.data_);
+
             }
-
-            // block access to compression functions included via policy
-            // make into data ref and size as arguments
-            //
-            void compress() {compress_policy(data_,current_size);}
-            void uncompress() {uncompress_policy(data_,this->allocated_memory(),current_size());} 
-
             private:
             size_type rows_;
             size_type cols_;
             size_type dim0_;
             pointer data_;
-            //compression members
-            size_type current_size;
         };
 
     template <class T, class A>

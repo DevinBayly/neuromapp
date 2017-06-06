@@ -1,9 +1,9 @@
 #include <iostream>
-#include <iterator>
 #include <fstream>
 #include <algorithm>
 #include <vector>
 
+#include <sstream>
 #include <string>
 
 #define BOOST_TEST_MODULE devin_block_test
@@ -76,7 +76,7 @@ string s3 {R"(6,16
 0.0036363636363636364, 0.0037373737373737372, 0.0038383838383838384, 0.0039393939393939396, 0.0040404040404040404, 0.0041414141414141412,
 0.004242424242424242, 0.0043434343434343436, 0.0044444444444444444, 0.0045454545454545452, 0.0046464646464646469, 0.0047474747474747477,
 0.0048484848484848485, 0.0049494949494949493, 0.0050505050505050501, 0.0051515151515151517, 0.0052525252525252525, 0.0053535353535353533,
-0.005454545454545455, 5.5555555555555558, 0.0056565656565656566, 0.0057575757575757574, 0.0058585858585858581, 0.0059595959595959598,
+0.005454545454545455, 0.0055555555555555558, 0.0056565656565656566, 0.0057575757575757574, 0.0058585858585858581, 0.0059595959595959598,
 0.0060606060606060606, 0.0061616161616161614, 0.0062626262626262631, 0.0063636363636363638, 0.0064646464646464646, 0.0065656565656565654,
 0.0066666666666666662, 0.0067676767676767679, 0.0068686868686868687, 0.0069696969696969695, 0.0070707070707070711, 0.0071717171717171719,
 0.0072727272727272727, 0.0073737373737373735, 0.0074747474747474743, 0.007575757575757576, 0.0076767676767676768, 0.0077777777777777776,
@@ -84,7 +84,7 @@ string s3 {R"(6,16
 0.008484848484848484, 0.0085858585858585856, 0.0086868686868686873, 0.0087878787878787872, 0.0088888888888888889, 0.0089898989898989905,
 0.0090909090909090905, 0.0091919191919191921, 0.0092929292929292938, 0.0093939393939393937, 0.0094949494949494954, 0.0095959595959595953)"};
 
-string s3_correct {R"(0 0.00010101010101010101 0.00020202020202020202 0.00030303030303030303 0.00040404040404040404 0.00050505050505050505
+string s3_correct {R"(0.0 0.00010101010101010101 0.00020202020202020202 0.00030303030303030303 0.00040404040404040404 0.00050505050505050505
 0.00060606060606060606 0.00070707070707070707 0.00080808080808080808 0.00090909090909090909 0.0010101010101010101 0.0011111111111111111
 0.0012121212121212121 0.0013131313131313131 0.0014141414141414141 0.0015151515151515152 0.0016161616161616162 0.0017171717171717172
 0.0018181818181818182 0.0019191919191919192 0.0020202020202020202 0.002121212121212121 0.0022222222222222222 0.0023232323232323234
@@ -154,102 +154,41 @@ typedef boost::mpl::list<shell<float, neuromapp::cstandard>,
     test_allocator_types;
 
 
-//this is the helper function for getting the values from the string into a vector
-template<typename out>
-void split(const std::string &s , char delim, out result) {
-    std::stringstream ss;
-    ss.str(s);
-    std::string item;
-    while(std::getline(ss,item,delim)) {
-        *(result++) =item;       
-    }
-}
-
 
 // use lists to facilitate ease when checking various options
-vector<string> start_string_vect {s1,s2,s4};
-vector<string> correct_string_vect {s1_correct,s2_correct,s4_correct};
+vector<string> start_string_vect {s2};
+vector<string> correct_string_vect {s2_correct};
 BOOST_AUTO_TEST_CASE_TEMPLATE( read_test,T,test_allocator_types) {
     //use counter to control testing on strings that have correct versions given
     int correct_counter =0;
+    // TODO ask tim about this syntax
     typedef typename T::value_type value_type;
     typedef typename T::allocator_type allocator_type;
     for (string str : start_string_vect) {
-        vector<std::string> hand_made_holder;
         stringstream ss,ss2;
-        string correct_str = correct_string_vect[correct_counter++];
+        std::cout << "correct count is " << correct_counter << std::endl;
+        string correct_str = correct_string_vect[correct_counter];
         ss << str;
         block<value_type,allocator_type> b1;
         //check basic error catching
-        //note that the ss >> b1 will return 0 when successful
-        try {
-        ss >> b1;
-        } catch (...) {
-            std::cout << " exception raised at creation" << std::endl;
-            return;
-        }
+        BOOST_CHECK_MESSAGE(ss >> b1,
+                "string was\n"<<str);
         //capture output of block print
         // block output has no separating commas
-        ss.str("");
-        ss.clear();
-        ss << b1;
-        BOOST_CHECK_MESSAGE(ss.str() == correct_str,
-                "failed comparison: string was\n" << correct_str+"\n" << "block was\n" << ss.str());
-        //again clear the contents of the stream
-        ss.str("");
-        ss.clear();
+        ss2 << b1;
+        BOOST_CHECK_MESSAGE(ss2.str() == correct_str,
+                "failed comparison: string was\n" << correct_str+"\n" << "block was\n" << ss2.str());
         //mem cmp test
-        std::string line;
-        ss<<str;
-        //toss the first line
-        std::getline(ss,line);
-        while(std::getline(ss,line)) {
-            std::stringstream line_ss(line);
-            split(line_ss.str(),',',std::back_inserter(hand_made_holder));
-        }
-        //construct iterator for the container
-        auto hand_made_it = hand_made_holder.begin();
         //built by file, now by hand for comparison
-        int rows = b1.num_rows(), cols= b1.num_cols();
-        block<value_type,allocator_type> b2(cols,rows);
-        for (int i = 0; i < rows;i++) {
-            //this is the first by hand way of checking this I could think of
-            for (int j = 0;j < cols; j++) {
-                std::stringstream(*hand_made_it++) >> std::dec >> b2(j,i);
-            }
-
-        }
-        BOOST_CHECK(b1==b2);
+//        std_block b2(4,5);
+//        for (int i = 0; i < b2.num_rows();i++) {
+//            //this is the first by hand way of checking this I could think of
+//            for (int j = 0;j < b2.num_cols(); j++) {
+//            //use static casts based on value_type to make the conversion from string to block element easier
+//                b2(j,i) = vals[j];
+//            }
+//        }
+//        BOOST_CHECK(b1==b2);
     }
 }
-
-
-BOOST_AUTO_TEST_CASE(compression_test) {
-    // create a block using the read
-    stringstream ss(s1);
-    block<int,cstandard> b1;
-    //ss>>b1;
-    //make a copy of b1
-    block<int,cstandard> b2(b1);// use the copy constructor
-    //start compress
-    try {
-        b1.compress();
-    } catch (...) {
-        std::cout << "compression threw an error" << std::endl;
-    }
-    //check current size
-    std::cout << "b1 current size is " << b1.size() << std::endl;
-    //do the uncompress
-    //
-    try{ 
-        b1.uncompress();
-    } catch (...) {
-        std::cout << "uncompression error" << std::endl;
-    }
-    // compare the two blocks should be equal
-
-    BOOST_CHECK(b1==b2);
-}
-
-
 
