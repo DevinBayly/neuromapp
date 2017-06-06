@@ -1,6 +1,13 @@
 #compression test
 add_executable(block_test compression.cpp) 
 add_executable(block_read_test  block_reading_tests.cpp)
+find_package(ZLIB REQUIRED)
+if ( ZLIB_FOUND )
+    ## this is according to cmake third parties SE post
+    include_directories( ${ZLIB_INCLUDE_DIRS})
+    target_link_libraries(block_read_test ${ZLIB_LIBRARIES})
+    #set_target_properties(compression PROPERTIES COMPILE_FLAGS "-Wfatal-errors -g")
+endif (ZLIB_FOUND)
 set_target_properties(block_read_test PROPERTIES COMPILE_FLAGS "-Wfatal-errors -g")
 target_link_libraries(block_test ${Boost_LIBRARIES})
 target_link_libraries(block_read_test ${Boost_LIBRARIES})
