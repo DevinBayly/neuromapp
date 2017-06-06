@@ -39,7 +39,6 @@ namespace neuromapp {
             using allocator::allocate_policy;
             using allocator::deallocate_policy;
             using allocator::copy_policy;
-            using allocator::compare_policy;
             //expose compressor functions
             using compressor::compress_policy;
             using compressor::uncompress_policy;
@@ -69,17 +68,17 @@ namespace neuromapp {
                 other.rows_ = 0;
                 other.cols_ = 0;
                 other.dim0_ = 0;
-                current_size = 0;
                 other.data_ = nullptr;
             }
 
+            // todo ask tim does this work on blocks with data in them?
             block(const block &other) {
                 // std::move is not needed on basic type
                 rows_ = other.rows_;
                 cols_ = other.cols_;
                 dim0_ = other.dim0_;
-                current_size = sizeof(T) * cols_ * rows_;
-                data_ = (pointer)allocate_policy(current_size);
+                size_type size = sizeof(T) * cols_ * rows_;
+                data_ = (pointer)allocate_policy(size);
                 copy_policy(data_, other.data_, size);
             }
 
@@ -207,10 +206,8 @@ namespace neuromapp {
                 int row,col;
                 file_in >> col;
                 file_in >> std::ws;
-                // this comes up in cases where an empty string is provided,
-                if(file_in.get() != ',') {
-                    throw 0;// I think it just means if there was something inbetween that wasn't a comma throw 0 error
-                }
+                // TODO look up what is this doing to skip the comma
+                if(file_in.get() != ',') throw 0;// I think it just means if there was something inbetween that wasn't a comma throw 0 error
                 //and now repeat for the row
                 file_in >> row;
                 file_in >> std::ws;
