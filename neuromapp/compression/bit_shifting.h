@@ -127,8 +127,9 @@ typename Conv_info<T>::bytetype get_exp(T val) {
 template <typename T>
 typename Conv_info<T>::bytetype get_mant(T val) {
     cbit_holder<T> cb;
-    cb.conv_bits.val=val;
-    typename Conv_info<T>::bytetype mask = (1 << Conv_info<T>::mant_size)-1;
+    typename Conv_info<T>::bytetype one(1); // Like this you are sure than one will be 32 or 64 bits
+    typename Conv_info<T>::bytetype mask = (one << Conv_info<T>::mant_size)-one; // no overflow now
+    return cb.conv_bits.bits & mask; 
     return cb.conv_bits.bits & mask; 
 }
 

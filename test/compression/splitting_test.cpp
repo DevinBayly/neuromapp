@@ -43,16 +43,16 @@ struct shell {
 
 //should I be testing the align this whole time?
 typedef boost::mpl::list<shell<float, neuromapp::cstandard>,
-                         shell<double, neuromapp::cstandard>>
-    test_allocator_types;
+        shell<double, neuromapp::cstandard>>
+        test_allocator_types;
 
-//this function generates the correct format for the string which we compare the block output against
-//generic def
-template <typename T>
-string create_correct_string(string original_str) {
-    std::cout << "generic version called, check typing" << std::endl;
-    return string("");
-}
+        //this function generates the correct format for the string which we compare the block output against
+        //generic def
+        template <typename T>
+        string create_correct_string(string original_str) {
+            std::cout << "generic version called, check typing" << std::endl;
+            return string("");
+        }
 //probably a lot of tests...
 BOOST_AUTO_TEST_CASE_TEMPLATE(compression_test,T,test_allocator_types) {
     typedef typename T::value_type value_type;
